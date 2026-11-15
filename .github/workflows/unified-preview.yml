@@ -78,6 +78,7 @@ jobs:
           set -euo pipefail
           test -s dist/index.html
           test -s dist/admin/index.html
+          test -s dist/staff-workspace/index.html
           test -s dist/classes/index.html
           test -s dist/online-tests/index.html
           test -s dist/study-materials/index.html
