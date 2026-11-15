@@ -1,0 +1,108 @@
+# Unified Preview (manual-only, no automatic or scheduled production/preview deployments)
+# Owner starts this workflow manually after approving the specific Preview deployment.
+# This workflow MUST run in the isolated Preview repository, never the Production repository.
+name: Unified Preview — Manual Owner-Approved Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Approved source branch, tag or commit SHA from krishansironline"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: krishansir-unified-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Validate and Build Isolated Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.PREVIEW_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PREVIEW_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Verify Preview database configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$VITE_SUPABASE_URL" != "https://zgpkmfqioqvincmgyfpi.supabase.co" ]; then
+            echo "::error::Expected the separate Preview Supabase project. Production credentials are not permitted."
+            exit 1
+          fi
+          if [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::PREVIEW_SUPABASE_PUBLISHABLE_KEY is not configured."
+            exit 1
+          fi
+
+      - name: Checkout approved website revision
+        uses: actions/checkout@v4
+        with:
+          repository: tcoe96096/krishansironline
+          ref: ${{ inputs.source_ref }}
+          path: website
+          persist-credentials: false
+
+      - name: Record immutable source revision
+        working-directory: website
+        shell: bash
+        run: git rev-parse HEAD | tee PREVIEW_SOURCE_COMMIT.txt
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install project dependencies
+        working-directory: website
+        run: npm install --legacy-peer-deps
+
+      - name: Validate TypeScript
+        working-directory: website
+        run: npm run lint
+
+      - name: Build website at isolated Preview path
+        working-directory: website
+        run: npm run build -- --base=/krishansironline-preview-unified/
+
+      - name: Verify key output pages
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s dist/admin/index.html
+          test -s dist/classes/index.html
+          test -s dist/online-tests/index.html
+          test -s dist/study-materials/index.html
+          test -s dist/results/index.html
+          cp PREVIEW_SOURCE_COMMIT.txt dist/PREVIEW_SOURCE_COMMIT.txt
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Preview artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  deploy:
+    name: Publish Preview Only
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy only to this Preview repository's Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
