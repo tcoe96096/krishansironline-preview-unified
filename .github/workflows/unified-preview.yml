@@ -92,6 +92,16 @@ jobs:
           npx vite build --config vite.teacher-beta.config.ts --base=/krishansironline-preview-unified/teacher-beta/
           node scripts/assemble-teacher-unified-preview.mjs dist teacher-beta-dist
 
+      - name: Preserve legacy staff workspace deep-link fallback
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -s dist/staff-workspace/index.html ]; then
+            mkdir -p dist/staff-workspace
+            cp dist/index.html dist/staff-workspace/index.html
+          fi
+
       - name: Verify key output pages
         working-directory: website
         shell: bash
