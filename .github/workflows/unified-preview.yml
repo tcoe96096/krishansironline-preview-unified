@@ -71,6 +71,16 @@ jobs:
         working-directory: website
         run: npm run build -- --base=/krishansironline-preview-unified/
 
+      - name: Verify approved source includes isolated Teacher Beta
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f vite.teacher-beta.config.ts
+          test -f scripts/assemble-teacher-unified-preview.mjs
+          test -f teacher-beta/index.html
+          test -f src/lib/teacherLoginCallback.ts
+
       - name: Build isolated Teacher Beta for Unified Preview (registration disabled)
         working-directory: website
         env:
